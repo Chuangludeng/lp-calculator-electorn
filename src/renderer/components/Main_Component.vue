@@ -9,6 +9,7 @@
         v-model="selectedCorporation"
         placeholder="请选择军团"
         v-on:change="getLPStoreDataWithCookie"
+        filterable
       >
         <el-option
           v-for="item in corporationData"
@@ -17,6 +18,8 @@
           :value="item.id"
         ></el-option>
       </el-select>&nbsp;&nbsp;
+      <el-input v-model="search" style="width: 250px" placeholder="输入物品名称搜索" />
+      &nbsp;&nbsp;
       <el-switch
         active-text="使用缓存"
         v-model="useCookie"
@@ -67,8 +70,7 @@
               >{{(scope.row.buy * scope.row.getNumber * scope.row.quantity).toLocaleString()}}</span>
             </template>
           </el-table-column>
-        </el-table>
-        物品需求统计
+        </el-table>物品需求统计
         <el-table :data="cartRequest" style="width: 100%">
           <el-table-column prop="name" label="名称" width="200" sortable></el-table-column>
           <el-table-column prop="quantity" label="数量" width="80" sortable>
@@ -91,7 +93,9 @@
         </el-table>
       </el-dialog>
 
-      <el-table :data="tableData" style="width: 100%" v-on:expand-change="getItemOrder" stripe>
+      <el-button @click="help">帮助</el-button>
+
+      <el-table :data="tables" style="width: 100%" v-on:expand-change="getItemOrder" stripe>
         <el-table-column type="expand">
           <template slot-scope="scope">
             兑换计算
@@ -152,7 +156,9 @@
             </el-table>
           </template>
         </el-table-column>
-        <el-table-column prop="name" label="名称" sortable width="250"></el-table-column>
+        <el-table-column prop="name" label="名称" width="250">
+
+        </el-table-column>
         <el-table-column prop="lp_cost" label="忠诚点数" sortable :formatter="formatterNumber"></el-table-column>
         <el-table-column prop="quantity" label="数量" width="80" sortable></el-table-column>
         <el-table-column prop="isk_cost" :formatter="formatterNumber" sortable label="兑换所需星币"></el-table-column>
@@ -167,19 +173,33 @@
 
         <el-table-column prop="sell" label="吉他出售(单个)" :formatter="formatterNumber" sortable />
         <el-table-column prop="buy" label="吉他收购(单个)" :formatter="formatterNumber" sortable />
-        <el-table-column prop="lp_rate_buy" label="吉他收购(ISK/LP)" width="200" sortable />
-        <el-table-column prop="lp_rate_sell" label="吉他出售(ISK/LP)" width="200" sortable />
         <el-table-column
-          prop="lp_rate_buy_all"
-          label="如所需物品在吉他出售价购买，吉他收购(ISK/LP)"
-          width="250"
+          prop="lp_rate_buy"
+          label="吉他收购比例"
+          width="150"
+          :formatter="formatterNumber"
           sortable
         />
         <el-table-column
-          prop="lp_rate_sell_all"
-          label="如所需物品在吉他出售价购买，吉他出售(ISK/LP)"
-          width="250"
+          prop="lp_rate_sell"
+          label="吉他出售比例"
+          width="150"
+          :formatter="formatterNumber"
           sortable
+        />
+        <el-table-column
+          prop="lp_rate_buy_all"
+          label="所需物品以吉他卖价购买,吉他收购比例"
+          width="190"
+          sortable
+          :formatter="formatterNumber"
+        />
+        <el-table-column
+          prop="lp_rate_sell_all"
+          label="所需物品以吉他卖价购买,吉他出售比例"
+          width="190"
+          sortable
+          :formatter="formatterNumber"
         />
         <el-table-column label="操作">
           <template slot-scope="scope">
@@ -194,8 +214,8 @@
 <script>
 import $ from "jquery";
 
-import fs from 'fs'
-import path from 'path'
+import fs from "fs";
+import path from "path";
 
 export default {
   name: "Main_Component",
@@ -209,86 +229,105 @@ export default {
       blueprintProduct: null,
       curUpdateIndex: 0,
       loading: false,
-      useCookie: true,
+      useCookie: false,
       showBlueprint: false,
       sellData: [],
       buyData: [],
       getNumber: 1,
       cart: [],
       cartRequest: [],
-      dialogCartVisible: false
+      dialogCartVisible: false,
+      search: "",
     };
   },
 
+  computed:{
+    tables:function(){
+      const search = this.search;
+      if (search) {
+        return this.tableData.filter(item => {
+            return item.name.indexOf(search) > -1;
+        });
+      }
+      return this.tableData;
+    }
+  },
+
+
   methods: {
-    getTotalRequestNubmer: function(requestItem) {
+
+    help: function () {
+      this.$alert(
+        "启动后，在上面选择军团，然后边上有一个数字在变化，这是在从国服市场中心取得数据。<b>等数字走完后，需要点击一下数据列边上的箭头进行排序，数据会显示出来</b>。 <b>点击每个物品前面的箭头会显示该物品的订单情况，以及一个简单的数量计算器</b>。<br>显示蓝图 表示是否以蓝图制造的物品来计算lp，关闭的话，蓝图的价值是0。<br>使用缓存 从市场取得的数据会缓存到本地，不会每次都到国服市场中心取数据，这个开关是控制是不是强制每次都重取。",
+        "帮助",
+        {
+          confirmButtonText: "确定",
+          dangerouslyUseHTMLString: true,
+        }
+      );
+    },
+
+    getTotalRequestNubmer: function (requestItem) {
       let ret = 0;
-      for(let i = 0;i < requestItem.row.requests.length;i++)
-      {
-        ret += requestItem.row.requests[i].quantity * requestItem.row.requests[i].main_item.getNumber;
+      for (let i = 0; i < requestItem.row.requests.length; i++) {
+        ret +=
+          requestItem.row.requests[i].quantity *
+          requestItem.row.requests[i].main_item.getNumber;
       }
       return ret;
     },
 
-    getTotalNubmer: function(row) {
+    getTotalNubmer: function (row) {
       return row.getNumber * row.quantity;
     },
 
-    formatterNumber: function(row, column, cellValue) {
+    formatterNumber: function (row, column, cellValue) {
       if (typeof cellValue == "undefined") return "";
       else return cellValue.toLocaleString();
     },
 
-    handleAdd: function(index, row) {
+    handleAdd: function (index, row) {
       this.cart.push(row);
 
-      for(var i = 0;i<row.required_items.length;i++)
-      {
-
+      for (var i = 0; i < row.required_items.length; i++) {
         var found = null;
-        for(var j = 0; j < this.cartRequest.length; j++)
-        {
-          if(this.cartRequest[j].type_id == row.required_items[i].type_id)
-          {
+        for (var j = 0; j < this.cartRequest.length; j++) {
+          if (this.cartRequest[j].type_id == row.required_items[i].type_id) {
             found = this.cartRequest[j];
             break;
           }
         }
 
         let item = {
-          main_item : row,
-          quantity : row.required_items[i].quantity
-        }
+          main_item: row,
+          quantity: row.required_items[i].quantity,
+        };
 
         this.$set(item, "getNumber", row.getNumber);
 
-        if(found != null)
-        {
-          found.requests.push(item)
-        }
-        else
-        {
+        if (found != null) {
+          found.requests.push(item);
+        } else {
           found = {
-            name : row.required_items[i].name,
-            type_id : row.required_items[i].type_id,
-            requests : [item]
+            name: row.required_items[i].name,
+            type_id: row.required_items[i].type_id,
+            requests: [item],
           };
 
           this.$set(found, "now_number", 0);
 
           this.cartRequest.push(found);
-        }        
+        }
       }
     },
 
-    getItemOrder: function(row) {
+    getItemOrder: function (row) {
       var vm = this;
-      
+
       var product_id = row.type_id;
       var product = vm.blueprintProduct.get(row.type_id);
-      if (product != undefined)
-      {
-        product_id=product.product;
+      if (product != undefined) {
+        product_id = product.product;
       }
 
       $.ajax({
@@ -297,68 +336,44 @@ export default {
           "https://www.ceve-market.org/api/quicklook?regionlimit=10000002&typeid=" +
           product_id,
         dataType: "xml",
-        success: function(xml) {
+        success: function (xml) {
           vm.sellData.length = 0;
           vm.buyData.length = 0;
 
           $(xml)
             .find("sell_orders")
             .find("order")
-            .each(function() {
+            .each(function () {
               var order = {
-                quantity: Number(
-                  $(this)
-                    .find("vol_remain")
-                    .text()
-                ),
-                price: Number(
-                  $(this)
-                    .find("price")
-                    .text()
-                ),
-                orderDate: $(this)
-                  .find("reported_time")
-                  .text(),
-                position: $(this)
-                  .find("station_name")
-                  .text()
+                quantity: Number($(this).find("vol_remain").text()),
+                price: Number($(this).find("price").text()),
+                orderDate: $(this).find("reported_time").text(),
+                position: $(this).find("station_name").text(),
               };
               vm.sellData.push(order);
             });
           $(xml)
             .find("buy_orders")
             .find("order")
-            .each(function() {
+            .each(function () {
               var order = {
-                quantity: Number(
-                  $(this)
-                    .find("vol_remain")
-                    .text()
-                ),
-                price: Number(
-                  $(this)
-                    .find("price")
-                    .text()
-                ),
-                orderDate: $(this)
-                  .find("reported_time")
-                  .text(),
-                position: $(this)
-                  .find("station_name")
-                  .text()
+                quantity: Number($(this).find("vol_remain").text()),
+                price: Number($(this).find("price").text()),
+                orderDate: $(this).find("reported_time").text(),
+                position: $(this).find("station_name").text(),
               };
               vm.buyData.push(order);
             });
-        }
+        },
       });
     },
 
-    getReqItemData: function(item) {
+    getReqItemData: function (item) {
       var item_promise = $.getJSON(
         "https://www.ceve-market.org/api/market/region/10000002/type/" +
           item.type_id +
           ".json",
-        function(mm_data) {
+        function (mm_data) {
           item.buy = mm_data.buy.max;
           item.sell = mm_data.sell.min;
 
@@ -371,32 +386,29 @@ export default {
       return item_promise;
     },
 
-    getLPStoreData: function(corporationid, useCookie) {
+    getLPStoreData: function (corporationid, useCookie) {
       var vm = this;
       vm.curUpdateIndex = 0;
       vm.loading = true;
       fs.readFile(
-        path.join(__static, '/LPStore/' + corporationid + "/loyalty.json"),
-        'utf-8',
-        function(err,data) {
+        path.join(__static, "/LPStore/" + corporationid + "/loyalty.json"),
+        "utf-8",
+        function (err, data) {
+          var d = JSON.parse(data);
 
-          var d  =JSON.parse(data)
-
-          d.forEach(element => {
+          d.forEach((element) => {
             var promiseList = [];
 
             var item_main = vm.itemDescription.get(element.type_id);
             element.name = item_main.name;
             element.description = item_main.description;
             element.getNumber = 1;
-            
+
             var product_id = element.type_id;
-            if(vm.showBlueprint)
-            {
+            if (vm.showBlueprint) {
               var product = vm.blueprintProduct.get(element.type_id);
-              if (product != undefined)
-              {
-                product_id=product.product;
+              if (product != undefined) {
+                product_id = product.product;
               }
             }
 
@@ -411,7 +423,7 @@ export default {
                 "https://www.ceve-market.org/api/market/region/10000002/type/" +
                   product_id +
                   ".json",
-                function(m_data) {
+                function (m_data) {
                   element.buy = m_data.buy.max;
                   element.sell = m_data.sell.min;
 
@@ -419,7 +431,7 @@ export default {
                     element.type_id,
                     JSON.stringify({
                       buy: m_data.buy.max,
-                      sell: m_data.sell.min
+                      sell: m_data.sell.min,
                     }),
                     { expires: 7 }
                   );
@@ -467,11 +479,11 @@ export default {
       );
     },
 
-    getLPStoreDataWithCookie: function(corporationid) {
+    getLPStoreDataWithCookie: function (corporationid) {
       this.getLPStoreData(corporationid, this.useCookie);
     },
 
-    updateItem: function(item) {
+    updateItem: function (item) {
       item.lp_rate_buy =
         (item.buy * item.quantity - item.isk_cost) / item.lp_cost;
       item.lp_rate_sell =
@@ -505,41 +517,41 @@ export default {
       }
     },
 
-    getCorporationData: function() {
+    getCorporationData: function () {
       var vm = this;
       fs.readFile(
-        path.join(__static,'/LPStore/corporation_description.json'),
-        'utf-8',
-        function(err,data) {
-          var d  =JSON.parse(data)
+        path.join(__static, "/LPStore/corporation_description.json"),
+        "utf-8",
+        function (err, data) {
+          var d = JSON.parse(data);
           vm.corporationData = d;
         }
       );
     },
 
-    getItemDescription: function() {
+    getItemDescription: function () {
       var vm = this;
       fs.readFile(
-        path.join(__static, '/LPStore/loyalty_description.json'),
-        'utf-8',
-        function(err,data) {
-          var d  =JSON.parse(data)
+        path.join(__static, "/LPStore/loyalty_description.json"),
+        "utf-8",
+        function (err, data) {
+          var d = JSON.parse(data);
           vm.itemDescription = new Map(d);
         }
       );
     },
 
-    getBlueprintProduct: function() {
+    getBlueprintProduct: function () {
       var vm = this;
       fs.readFile(
-        path.join(__static, '/LPStore/blueprint_product.json'),
-        'utf-8',
-        function(err,data) {
-          var d  =JSON.parse(data)
+        path.join(__static, "/LPStore/blueprint_product.json"),
+        "utf-8",
+        function (err, data) {
+          var d = JSON.parse(data);
           vm.blueprintProduct = new Map(d);
         }
       );
-    }
+    },
   },
 
   created() {
@@ -547,7 +559,7 @@ export default {
     this.getCorporationData();
     this.getBlueprintProduct();
     // this.getLPStoreData(1000001)
-  }
+  },
 };
 </script>
 
