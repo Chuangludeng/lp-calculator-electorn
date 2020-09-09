@@ -4,6 +4,10 @@
 
 国服EVE LP兑换计算器 价格基于国服市场中心
 
+右侧 Releases 里面下载生成好的应用程序，当然你不放心可以自己build。
+
+# 前排接受国服EVE捐赠，ID: LittleDemo
+
 #### Build Setup
 
 ``` bash
